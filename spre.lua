@@ -60,6 +60,8 @@ local wave_phase    = 0
 local wave_anim     = 0
 local note_birds    = {}
 local master_level  = 0.5
+local filter_type   = 0
+local FILTER_TYPE_NAMES = {"AIR", "GLASS", "AMBER", "WOOD"}
 local amp_level     = 0
 local melody_mode   = 1
 local last_degree   = 7
@@ -743,6 +745,7 @@ function init()
     end)
   end
   params:bang()
+  engine.filterType(filter_type)
   for _, dev in pairs(midi.devices) do
     if dev ~= nil then
       dev.event  = onMidi
@@ -1028,9 +1031,13 @@ function enc(n, delta)
   if n == 1 then
     if k1_held then
       screen_page = ((screen_page - 1 + (delta > 0 and 1 or -1)) % 3) + 1
-    else
-      master_level = util.clamp(master_level + delta * 0.02, 0, 1)
-      engine.gain(master_level)
+    elseif screen_page == 1 then
+      local p = all_params[sel_item + 1]
+      if p and p.type == "control" and p.id == "filter" then
+        filter_type = util.clamp(filter_type + (delta > 0 and 1 or -1), 0, 3)
+        engine.filterType(filter_type)
+        show_overlay(FILTER_TYPE_NAMES[filter_type + 1])
+      end
     end
     return
   end
