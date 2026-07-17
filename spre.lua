@@ -1,6 +1,4 @@
--- spre: a generative synthesizer for monome norns
--- v1.0.0 @Puyoma
--- https://github.com/puyoma/spre
+-- spre.lua
 engine.name = "Spre"
 local g = grid.connect()
 local SCALES = {
@@ -184,7 +182,7 @@ function draw_splash()
     screen.text_center("generative synthesizer")
     screen.level(math.floor(sub_lv * 0.6))
     screen.move(64, 59)
-    screen.text_center("v1.0  /  by Puyoma")
+    screen.text_center("v1.0.1  /  by Puyoma")
   end
   for _, b in ipairs(splash_birds) do
     if splash_t >= b.delay then
@@ -335,6 +333,24 @@ function play_chord(notes)
       play_note(n)
     end)
   end
+end
+-- release every note we might be holding and clear grid state.
+-- Called on mode switch so held grid/MIDI notes never get stuck.
+function all_notes_off()
+  for note, _ in pairs(grid_notes) do
+    engine.noteOff(note)
+    if midiOut then midiOut:note_off(note, 0, MIDI_OUT_CH) end
+  end
+  grid_notes = {}
+  for _, q in pairs(midi_note_map) do
+    engine.noteOff(q)
+    if midiOut then midiOut:note_off(q, 0, MIDI_OUT_CH) end
+  end
+  midi_note_map = {}
+end
+-- release held notes when the script unloads (engine + MIDI out).
+function cleanup()
+  all_notes_off()
 end
 function looper_capture(note, ev_type)
   if recording_slot then
@@ -681,7 +697,9 @@ function grid_redraw()
       for col = 1, 15 do
         local degree = grid_to_degree(row, col)
         local note   = get_scale_note(degree)
-        g:led(col, row, grid_notes[note] and 15 or 2)
+        -- 未押下は消灯(0)。monomeは元々ほぼ不可視で変化なし、
+        -- Launchpad(midigrid)では鍵盤の常時点灯が消え「弾いた時だけ光る」に揃う
+        g:led(col, row, grid_notes[note] and 15 or 0)
       end
     end
     if mode == 2 or mode == 3 then
@@ -769,17 +787,31 @@ function init()
     engine.filterType(v - 1)
   end)
   params:bang()
+  -- Don't steal MIDI input that midigrid (or anything else) owns.
+  -- Skip devices midigrid handles (grid controllers) AND any device that already
+  -- has an .event handler set. Also preserve the existing midi.add (e.g.
+  -- midigrid's) by calling it first, instead of overwriting it — this keeps
+  -- hot-plug / reconnect working for midigrid.
+  local function spre_is_grid_controller(dev)
+    local nm = (dev and dev.name) and string.lower(dev.name) or ""
+    return string.find(nm, "launchpad", 1, true) ~= nil
+        or string.find(nm, "apc",       1, true) ~= nil
+        or string.find(nm, "midigrid",  1, true) ~= nil
+  end
+  local previous_midi_add = midi.add
+  local function attach_spre_midi(dev)
+    if dev == nil then return end
+    if spre_is_grid_controller(dev) then return end
+    if dev.event ~= nil then return end   -- don't take over a handler already set
+    dev.event = onMidi
+    if midiDevice == nil then midiDevice = dev end
+  end
   for _, dev in pairs(midi.devices) do
-    if dev ~= nil then
-      dev.event  = onMidi
-      if midiDevice == nil then midiDevice = dev end
-    end
+    attach_spre_midi(dev)
   end
   midi.add = function(dev)
-    if dev ~= nil then
-      dev.event = onMidi
-      if midiDevice == nil then midiDevice = dev end
-    end
+    if previous_midi_add then previous_midi_add(dev) end
+    attach_spre_midi(dev)
   end
   midiOut = midi.connect(1)
   -- amp poll（VUメーター用）
@@ -834,11 +866,15 @@ function onMidi(data)
     midi_note_map[msg.note] = q
     play_note_adsr(q)
   end
-  if (msg.type == "note_off" or (msg.type == "note_on" and msg.vel == 0)) and mode == 2 then
-    local q = midi_note_map[msg.note] or msg.note
-    midi_note_map[msg.note] = nil
-    engine.noteOff(q)
-    if midiOut then midiOut:note_off(q, 0, MIDI_OUT_CH) end
+  -- process note-off whenever we have a mapping for it, regardless
+  -- of the current mode. Prevents stuck notes when the mode changes mid-hold.
+  if (msg.type == "note_off" or (msg.type == "note_on" and msg.vel == 0)) then
+    if midi_note_map[msg.note] then
+      local q = midi_note_map[msg.note]
+      midi_note_map[msg.note] = nil
+      engine.noteOff(q)
+      if midiOut then midiOut:note_off(q, 0, MIDI_OUT_CH) end
+    end
   end
   if msg.type == "cc" then
     local v   = msg.val / 127
@@ -874,6 +910,7 @@ function onMidi(data)
       if new_mode ~= mode then
         local prev = mode
         mode = new_mode
+        all_notes_off()   -- avoid stuck notes across mode switch
         if prev == 3 and mode ~= 3 then looper_clear_all() end
         build_param_list(); grid_redraw()
       end
@@ -1090,6 +1127,7 @@ function enc(n, delta)
     if p.type == "mode" then
       local prev = mode
       mode = util.clamp(mode + (delta > 0 and 1 or -1), 1, #MODES)
+      if prev ~= mode then all_notes_off() end   -- avoid stuck notes
       if prev == 3 and mode ~= 3 then looper_clear_all() end
       build_param_list()
       grid_redraw()
@@ -1401,7 +1439,6 @@ function redraw()
     local t  = viewer_t
     local bx = 62
     local floor_y = 52
-
     -- 楕円の水たまり
     local function puddle(px, py, rw, rh, lv)
       screen.level(lv)
@@ -1410,7 +1447,6 @@ function redraw()
         if h > 0 then screen.rect(px + dx, py - h, 1, h * 2 + 1); screen.fill() end
       end
     end
-
     -- 路地の抜け（空）と遠くの町並み
     screen.level(1); screen.rect(44, 4, 40, 30); screen.fill()
     screen.level(3)
@@ -1420,7 +1456,6 @@ function redraw()
     screen.level(2)
     screen.move(48,22); screen.line(53,18); screen.line(58,22); screen.fill()
     screen.move(60,17); screen.line(67,12); screen.line(75,17); screen.fill()
-
     -- 左右のビル
     screen.level(3)
     screen.rect(0,  0, 44, 40); screen.fill()
@@ -1439,7 +1474,6 @@ function redraw()
     screen.level(1); screen.rect(8, 16, 8, 9); screen.fill()
     screen.level(5); screen.rect(8, 16, 8, 1); screen.fill()
     screen.level(1); screen.rect(112, 30, 9, 8); screen.fill()
-
     -- 街灯（右壁）＋グロー
     local lx, ly = 98, 22
     screen.level(2); screen.move(lx+7, ly); screen.circle(lx, ly, 7); screen.fill()
@@ -1450,7 +1484,6 @@ function redraw()
     screen.move(lx, ly-6); screen.line(lx, ly-9); screen.stroke()
     screen.move(lx, ly-9); screen.line(lx+9, ly-9); screen.stroke()
     screen.move(lx+9, ly-9); screen.line(lx+9, ly-6); screen.stroke()
-
     -- 濡れた地面
     screen.level(2); screen.rect(0, 38, 128, 26); screen.fill()
     puddle(60, 60, 20, 3, 4)
@@ -1467,7 +1500,6 @@ function redraw()
         screen.move(r[1]+rr, r[2]); screen.circle(r[1], r[2], rr); screen.stroke()
       end
     end
-
     -- 小物: 樽（左手前）とタイヤ（右手前）
     screen.level(4); screen.rect(6, 50, 16, 12); screen.stroke()
     screen.move(6,50); screen.line(22,62); screen.stroke()
@@ -1475,7 +1507,6 @@ function redraw()
     screen.level(3)
     screen.move(114,60); screen.circle(108,60,6); screen.stroke()
     screen.move(111,60); screen.circle(108,60,3); screen.stroke()
-
     -- 雨（少年の背後）
     for i = 0, 44 do
       local rx = (i * 37 + math.floor(t * 6)) % 140 - 6
@@ -1483,12 +1514,10 @@ function redraw()
       screen.level((i % 4 == 0) and 8 or 4)
       screen.move(rx, ry); screen.line(rx - 2, ry + 5); screen.stroke()
     end
-
     -- 少年（後ろ姿・傘）。たまに足を動かす
     if boy_shuffle <= 0 and math.random() < 0.015 then boy_shuffle = 12 end
     if boy_shuffle > 0 then boy_shuffle = boy_shuffle - 1 end
     local step = (boy_shuffle > 0) and math.floor(math.sin(t * 0.8) * 1.5 + 0.5) or 0
-
     screen.level(5)
     screen.rect(bx - 3 - step, 46, 2, 5); screen.fill()
     screen.rect(bx + 1 + step, 46, 2, 5); screen.fill()
@@ -1520,7 +1549,6 @@ function redraw()
     for k = 2, 9 do screen.line(up[k][1], up[k][2]) end
     screen.stroke()
     screen.move(ucx, ucy - ury); screen.line(ucx, ucy - ury - 3); screen.stroke()
-
     screen.update()
     return
   end
