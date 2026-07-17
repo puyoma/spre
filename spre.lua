@@ -17,7 +17,7 @@ local SCALES = {
   { name="DIMINISH",   intervals={0,2,3,5,6,8,9,11} },
   { name="HUNG MIN",   intervals={0,2,3,6,7,8,11} },
   { name="IN SEN",     intervals={0,1,5,7,10} },
-  { name="HIRAJOSHI",  intervals={0,2,3,7,8}s },
+  { name="HIRAJOSHI",  intervals={0,2,3,7,8} },
   { name="ARABIC",     intervals={0,1,4,5,7,8,11} },
   { name="BEBOP MAJ",  intervals={0,2,4,5,7,8,9,11} },
   { name="ENIGMATIC",  intervals={0,1,4,6,8,10,11} },
