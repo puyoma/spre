@@ -45,9 +45,9 @@ spre starts in **AUTO** mode and begins generating notes automatically.
 - Turn **E3** to change the selected parameter.
 - When FILTER is selected, turn **E1** to choose AIR, GLASS, AMBER, or WOOD.
 - Press **K3** to open the MEL / POLY / STRUM page.
-- Set **DENSITY** to zero to stop new AUTO notes.
+- Set **FLOCK** to zero to stop new AUTO notes.
 
-Start with the norns output/headphone level low. Saturation, resonance, chords, and dense event settings can create sudden level changes.
+Start with the norns output/headphone level low. Saturation, resonance, chords, and high FLOCK and RAIN settings can create sudden level changes.
 
 ## norns controls
 
@@ -83,8 +83,8 @@ The visualizer page shows an animated rainy alley and has no dedicated editing c
 
 The internal generator creates notes from the selected ROOT and SCALE.
 
-- **DENSITY** controls how frequently events are generated. Zero stops new notes.
-- **CHANCE** is the probability that a generated event will be skipped. At zero, every event plays; at maximum, all events are skipped.
+- **FLOCK** controls how frequently events are generated. Zero stops new notes.
+- **RAIN** is the probability that a generated event will be skipped. At zero, every event plays; at maximum, all events are skipped.
 - **ATK / DEC** shape the percussive envelope.
 - MELODY chooses how pitches move.
 - POLY chooses how each pitch is voiced.
@@ -183,7 +183,7 @@ The audio looper receives spre's engine output as well as the norns audio inputs
 - Double press on grid, or K2 + K3, clears the selected slot.
 - Direction, speed (×0.25–×4), and level can be changed from the parameter page.
 
-Ending a new audio recording sets DENSITY to zero so the recorded loop can be heard clearly.
+Ending a new audio recording sets FLOCK to zero so the recorded loop can be heard clearly.
 
 ## 16×8 grid layout
 
@@ -194,8 +194,8 @@ Ending a new audio recording sets DENSITY to zero so the recorded loop can be he
 | Row 1, columns 1–12 | Root pitch class |
 | Row 1, columns 15–16 | Octave down / up |
 | Row 2, columns 1–16 | Scale selection |
-| Row 3, columns 1–8 / 9–15 | DENSITY / BRIT |
-| Row 4, columns 1–8 / 9–15 | CHANCE / SAT |
+| Row 3, columns 1–8 / 9–15 | FLOCK / BRIT |
+| Row 4, columns 1–8 / 9–15 | RAIN / SAT |
 | Row 5, columns 1–8 / 9–15 | ATK / TAPE |
 | Row 6, columns 1–8 / 9–15 | DEC / DUST |
 | Row 7, columns 1–8 / 9–15 | FM / SPREAD |
@@ -224,7 +224,7 @@ The norns interface and MIDI CC 20 can access all 20 scales. The 16×8 grid’s 
 
 | CC | Function |
 |---:|---|
-| 1–12 | DENSITY, CHANCE, ATK, DEC, FM, FILTER, BRIT, SAT, TAPE, DUST, SPREAD, INTONE |
+| 1–12 | FLOCK, RAIN, ATK, DEC, FM, FILTER, BRIT, SAT, TAPE, DUST, SPREAD, INTONE |
 | 13 / 14 | Octave down / up when value is above 63 |
 | 15 / 16 | SUSTAIN / RELEASE |
 | 17 | Filter type |
