@@ -14,7 +14,7 @@ The sound moves between clean, resonant tones and saturated, dusty, tape-worn te
 - 16×8 grid: optional
 - USB MIDI keyboard/controller: optional
 
-spre includes its own SuperCollider engine. Restart norns after the first installation.
+spre includes its own SuperCollider engine. After the first installation, shut norns down completely and turn it back on; a software restart may not be sufficient.
 
 The project should contain at least:
 
@@ -35,7 +35,7 @@ In the Maiden REPL:
 ;install https://github.com/puyoma/spre
 ```
 
-Restart norns, then launch `spre` from SELECT.
+After installation, shut norns down completely, turn it back on, then launch `spre` from SELECT. If only a software restart is performed, norns may report `AUDIO SYSTEM FAIL` until the next full power cycle.
 
 ## Quick start
 
