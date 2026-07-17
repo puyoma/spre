@@ -14,7 +14,7 @@ spreは、12音ポリフォニーのSuperColliderシンセエンジンに、5種
 - 16×8 grid：任意
 - USB MIDIキーボード／コントローラー：任意
 
-spreには専用のSuperColliderエンジンが含まれます。初回インストール後はnornsを再起動してください。
+spreには専用のSuperColliderエンジンが含まれます。初回インストール後はnornsの電源を完全に切り、もう一度電源を入れてください。ソフトウェア上の再起動だけでは不十分な場合があります。
 
 プロジェクトは最低限、次の構成になります。
 
@@ -35,7 +35,7 @@ MaidenのREPLで実行します。
 ;install https://github.com/puyoma/spre
 ```
 
-nornsを再起動し、SELECTから`spre`を起動してください。
+インストール後はnornsの電源を完全に切り、もう一度電源を入れてから、SELECTで`spre`を起動してください。ソフトウェア上の再起動だけを行うと、完全な電源OFF／ONまで`AUDIO SYSTEM FAIL`が表示される場合があります。
 
 ## クイックスタート
 
