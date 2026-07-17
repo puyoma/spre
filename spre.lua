@@ -1,6 +1,4 @@
--- spre: a generative synthesizer for monome norns
--- v1.0.0 @Puyoma
--- https://github.com/puyoma/spre
+-- spre.lua
 engine.name = "Spre"
 local g = grid.connect()
 local SCALES = {
@@ -19,7 +17,7 @@ local SCALES = {
   { name="DIMINISH",   intervals={0,2,3,5,6,8,9,11} },
   { name="HUNG MIN",   intervals={0,2,3,6,7,8,11} },
   { name="IN SEN",     intervals={0,1,5,7,10} },
-  { name="HIRAJOSHI",  intervals={0,2,3,7,8} },
+  { name="HIRAJOSHI",  intervals={0,2,3,7,8}s },
   { name="ARABIC",     intervals={0,1,4,5,7,8,11} },
   { name="BEBOP MAJ",  intervals={0,2,4,5,7,8,9,11} },
   { name="ENIGMATIC",  intervals={0,1,4,6,8,10,11} },
@@ -335,6 +333,24 @@ function play_chord(notes)
       play_note(n)
     end)
   end
+end
+-- [test build] release every note we might be holding and clear grid state.
+-- Called on mode switch so held grid/MIDI notes never get stuck.
+function all_notes_off()
+  for note, _ in pairs(grid_notes) do
+    engine.noteOff(note)
+    if midiOut then midiOut:note_off(note, 0, MIDI_OUT_CH) end
+  end
+  grid_notes = {}
+  for _, q in pairs(midi_note_map) do
+    engine.noteOff(q)
+    if midiOut then midiOut:note_off(q, 0, MIDI_OUT_CH) end
+  end
+  midi_note_map = {}
+end
+-- [test build] release held notes when the script unloads (engine + MIDI out).
+function cleanup()
+  all_notes_off()
 end
 function looper_capture(note, ev_type)
   if recording_slot then
@@ -681,7 +697,9 @@ function grid_redraw()
       for col = 1, 15 do
         local degree = grid_to_degree(row, col)
         local note   = get_scale_note(degree)
-        g:led(col, row, grid_notes[note] and 15 or 2)
+        -- [test build] 未押下は消灯(0)。monomeは元々ほぼ不可視で変化なし、
+        -- Launchpad(midigrid)では鍵盤の常時点灯が消え「弾いた時だけ光る」に揃う
+        g:led(col, row, grid_notes[note] and 15 or 0)
       end
     end
     if mode == 2 or mode == 3 then
@@ -742,6 +760,7 @@ function build_param_list()
   }
 end
 function init()
+  print("spre midigrid test build 2")   -- [test build] remove before release
   params:add_separator("SPRE")
   params:add_number("mode_param",    "MODE",    1, 3,       1)
   params:add_number("root_param",    "ROOT",    48, 72,     60)
@@ -769,17 +788,31 @@ function init()
     engine.filterType(v - 1)
   end)
   params:bang()
+  -- [test build] Don't steal MIDI input that midigrid (or anything else) owns.
+  -- Skip devices midigrid handles (grid controllers) AND any device that already
+  -- has an .event handler set. Also preserve the existing midi.add (e.g.
+  -- midigrid's) by calling it first, instead of overwriting it — this keeps
+  -- hot-plug / reconnect working for midigrid.
+  local function spre_is_grid_controller(dev)
+    local nm = (dev and dev.name) and string.lower(dev.name) or ""
+    return string.find(nm, "launchpad", 1, true) ~= nil
+        or string.find(nm, "apc",       1, true) ~= nil
+        or string.find(nm, "midigrid",  1, true) ~= nil
+  end
+  local previous_midi_add = midi.add
+  local function attach_spre_midi(dev)
+    if dev == nil then return end
+    if spre_is_grid_controller(dev) then return end
+    if dev.event ~= nil then return end   -- don't take over a handler already set
+    dev.event = onMidi
+    if midiDevice == nil then midiDevice = dev end
+  end
   for _, dev in pairs(midi.devices) do
-    if dev ~= nil then
-      dev.event  = onMidi
-      if midiDevice == nil then midiDevice = dev end
-    end
+    attach_spre_midi(dev)
   end
   midi.add = function(dev)
-    if dev ~= nil then
-      dev.event = onMidi
-      if midiDevice == nil then midiDevice = dev end
-    end
+    if previous_midi_add then previous_midi_add(dev) end
+    attach_spre_midi(dev)
   end
   midiOut = midi.connect(1)
   -- amp poll（VUメーター用）
@@ -834,11 +867,15 @@ function onMidi(data)
     midi_note_map[msg.note] = q
     play_note_adsr(q)
   end
-  if (msg.type == "note_off" or (msg.type == "note_on" and msg.vel == 0)) and mode == 2 then
-    local q = midi_note_map[msg.note] or msg.note
-    midi_note_map[msg.note] = nil
-    engine.noteOff(q)
-    if midiOut then midiOut:note_off(q, 0, MIDI_OUT_CH) end
+  -- [test build] process note-off whenever we have a mapping for it, regardless
+  -- of the current mode. Prevents stuck notes when the mode changes mid-hold.
+  if (msg.type == "note_off" or (msg.type == "note_on" and msg.vel == 0)) then
+    if midi_note_map[msg.note] then
+      local q = midi_note_map[msg.note]
+      midi_note_map[msg.note] = nil
+      engine.noteOff(q)
+      if midiOut then midiOut:note_off(q, 0, MIDI_OUT_CH) end
+    end
   end
   if msg.type == "cc" then
     local v   = msg.val / 127
@@ -874,6 +911,7 @@ function onMidi(data)
       if new_mode ~= mode then
         local prev = mode
         mode = new_mode
+        all_notes_off()   -- [test build] avoid stuck notes across mode switch
         if prev == 3 and mode ~= 3 then looper_clear_all() end
         build_param_list(); grid_redraw()
       end
@@ -1090,6 +1128,7 @@ function enc(n, delta)
     if p.type == "mode" then
       local prev = mode
       mode = util.clamp(mode + (delta > 0 and 1 or -1), 1, #MODES)
+      if prev ~= mode then all_notes_off() end   -- [test build] avoid stuck notes
       if prev == 3 and mode ~= 3 then looper_clear_all() end
       build_param_list()
       grid_redraw()
