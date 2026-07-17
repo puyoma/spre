@@ -1,4 +1,6 @@
--- spre.lua
+-- spre: a generative synthesizer for monome norns
+-- v1.0.0 @Puyoma
+-- https://github.com/puyoma/spre
 engine.name = "Spre"
 local g = grid.connect()
 local SCALES = {
