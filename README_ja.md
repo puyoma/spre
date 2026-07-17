@@ -245,6 +245,10 @@ spreが生成したMIDIノートは、MIDIポート1のチャンネル1からも
 
 Puyoma
 
+## ライセンス
+
+MIT License。詳細は[LICENSE](LICENSE)を参照してください。
+
 ## ステータス
 
 Version 1.0。フィードバック、不具合報告、録音を歓迎します。
