@@ -2,7 +2,7 @@
 
 **A generative synthesizer for monome norns.**
 
-spre combines a 12-voice SuperCollider synthesis engine with five melody generators, eight polyphonic voicings, scale quantization, MIDI and grid performance modes, and two kinds of looping. It can play by itself, respond to an external MIDI keyboard, or become a scale-aware instrument on a 16×8 grid.
+spre combines a 12-voice SuperCollider synthesis engine with five melody generators, eight polyphonic voicings, adjustable chord strum, scale quantization, MIDI and grid performance modes, and two kinds of looping. It can play by itself, respond to an external MIDI keyboard, or become a scale-aware instrument on a 16×8 grid.
 
 The sound moves between clean, resonant tones and saturated, dusty, tape-worn textures. Melody and harmony can be reshaped while the instrument is running.
 
@@ -22,6 +22,7 @@ The project should contain at least:
 spre/
 ├── spre.lua
 ├── README.md
+├── README_ja.md
 └── lib/
     └── Engine_Spre.sc
 ```
@@ -43,7 +44,7 @@ spre starts in **AUTO** mode and begins generating notes automatically.
 - Turn **E2** to select a parameter.
 - Turn **E3** to change the selected parameter.
 - When FILTER is selected, turn **E1** to choose AIR, GLASS, AMBER, or WOOD.
-- Press **K3** to open the MELODY / POLY page.
+- Press **K3** to open the MEL / POLY / STRUM page.
 - Set **DENSITY** to zero to stop new AUTO notes.
 
 Start with the norns output/headphone level low. Saturation, resonance, chords, and dense event settings can create sudden level changes.
@@ -58,23 +59,23 @@ These controls work from the main parameter page unless noted otherwise.
 | E2 | Select parameter |
 | E3 | Change selected parameter |
 | K2 | Jump to the next parameter row |
-| K3 | Toggle between parameter and MELODY / POLY pages |
-| K1 + E1 | Cycle parameter, MELODY / POLY, and visualizer pages |
+| K3 | Toggle between parameter and MEL / POLY / STRUM pages |
+| K1 + E1 | Cycle parameter, MEL / POLY / STRUM, and visualizer pages |
 | K1 + K2 | Octave down |
 | K1 + K3 | Octave up |
 | K2 + K3 | Clear the selected audio loop, or note-loop slot 1 |
 
 When **LOOP** is selected, K2 operates the loop instead of jumping to the next row.
 
-On the MELODY / POLY page:
+On the MEL / POLY / STRUM page:
 
 | Control | Action |
 |---|---|
-| E2 or K2 | Select MELODY or POLY |
-| E3 | Choose the algorithm or voicing |
+| E2 or K2 | Select MEL, POLY, or STRUM |
+| E3 | Choose the melody algorithm or voicing, or adjust strum amount |
 | K3 | Return to the parameter page |
 
-The visualizer page has no dedicated editing controls. Use K1 + E1 to leave it.
+The visualizer page shows an animated rainy alley and has no dedicated editing controls. Use K1 + E1 to leave it.
 
 ## Modes
 
@@ -87,10 +88,11 @@ The internal generator creates notes from the selected ROOT and SCALE.
 - **ATK / DEC** shape the percussive envelope.
 - MELODY chooses how pitches move.
 - POLY chooses how each pitch is voiced.
+- STRUM spreads notes within generated chords for a looser, human feel.
 
 ### MIDI
 
-Incoming MIDI notes are quantized to ROOT and SCALE, then played with an ADSR envelope. ATTACK, DECAY, SUSTAIN, and RELEASE become available on the parameter page.
+Incoming MIDI notes are quantized to ROOT and SCALE, then played with an ADSR envelope. ATTACK, DECAY, SUSTAIN, and RELEASE become available on the parameter page. A connected grid can also be played as a scale keyboard without leaving MIDI mode.
 
 ### GRID
 
@@ -121,6 +123,10 @@ Intervals follow degrees of the selected scale.
 | ADD4 | Note plus two and three scale degrees |
 | JAZZ | Note plus two and six scale degrees |
 
+## Strum
+
+STRUM controls the timing between notes in AUTO-mode chords. At zero, every note starts together. Higher values spread the note-ons with slight random variation, up to approximately 130 ms, for a strummed or humanized feel. It does not change single-note MONO voicing.
+
 ## Sound parameters
 
 | Parameter | Description |
@@ -138,6 +144,17 @@ Intervals follow degrees of the selected scale.
 | SUSTAIN | ADSR sustain in MIDI / GRID |
 | RELEASE | ADSR release in MIDI / GRID |
 
+### Filter types
+
+Turn E1 while FILTER is selected, or use FILTER TYPE in PARAMS, to choose a model. A change applies to notes triggered afterward; notes already sounding keep their original filter.
+
+| Type | Character |
+|---|---|
+| AIR | Bright, open 12 dB low-pass with singing resonance |
+| GLASS | Smooth, clean 24 dB low-pass with restrained resonance |
+| AMBER | Thick, warm ladder filter with a little grit |
+| WOOD | Vactrol-style low-pass gate with an organic decay |
+
 ## Loopers
 
 spre has two loop systems.
@@ -151,7 +168,7 @@ spre has two loop systems.
 - Double press: clear that slot.
 - Without a grid, select LOOP and press K2 to operate slot 1.
 
-The note looper records timing as performed; it is not beat-quantized.
+The note looper records AUTO-generated notes and notes played from the grid in MIDI or GRID mode. External MIDI input is not currently captured. Timing is recorded as performed and is not beat-quantized.
 
 ### Audio looper
 
@@ -195,7 +212,7 @@ Ending a new audio recording sets DENSITY to zero so the recorded loop can be he
 | Rows 3–8, columns 1–15 | Scale-note keyboard |
 | Column 16, rows 3–8 | Loop slots |
 
-The grid directly plays notes only in GRID mode.
+The grid directly plays notes in both MIDI and GRID modes.
 
 ## Included scales
 
@@ -210,7 +227,7 @@ The norns interface and MIDI CC 20 can access all 20 scales. The 16×8 grid’s 
 | 1–12 | DENSITY, CHANCE, ATK, DEC, FM, FILTER, BRIT, SAT, TAPE, DUST, SPREAD, INTONE |
 | 13 / 14 | Octave down / up when value is above 63 |
 | 15 / 16 | SUSTAIN / RELEASE |
-| 17 | Master level |
+| 17 | Filter type |
 | 18 | AUTO / MIDI / GRID mode |
 | 19 | Root, MIDI notes 48–72 |
 | 20 | Scale |
