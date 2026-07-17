@@ -26,9 +26,9 @@ local SCALES = {
 local PARAMS_DEF = {
   { id="bright",        name="BRIGHT",      def=0.50 },
   { id="saturation",    name="SATURATION",  def=0.30 },
-  { id="attackShape",   name="ATTACK",      def=0.20 },
+  { id="attackShape",   name="ATTACK",      def=0.50 },
   { id="tapeAmt",       name="TAPE",        def=0.20 },
-  { id="baseDecay",     name="DECAY",       def=0.40 },
+  { id="baseDecay",     name="DECAY",       def=0.50 },
   { id="dust",          name="DUST",         def=0.0  },
   { id="fmAmt",         name="FM",          def=0.20 },
   { id="spread",        name="SPREAD",      def=0.0  },
@@ -60,8 +60,8 @@ local wave_phase    = 0
 local wave_anim     = 0
 local note_birds    = {}
 local master_level  = 0.5
-local filter_type   = 0
-local FILTER_TYPE_NAMES = {"AIR", "GLASS", "AMBER", "WOOD"}
+local FILTER_TYPES  = {"AIR", "GLASS", "AMBER", "WOOD"}
+local filter_type   = 1
 local amp_level     = 0
 local melody_mode   = 1
 local last_degree   = 7
@@ -72,6 +72,9 @@ local MELODY_NAMES  = {"RAND", "GAUSS", "MRKV", "ORBIT", "FOLD"}
 local poly_mode     = 1
 local POLY_NAMES    = {"MONO", "OCT", "5TH", "TRIAD", "7TH", "RAND", "ADD4", "JAZZ"}
 local mel_col       = 0
+local poly_spread   = 0.0
+local viewer_t      = 0
+local boy_shuffle   = 0
 local looper_sel_slot = 1
 local degree_history = {}
 local NOTE_NAMES   = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"}
@@ -311,6 +314,26 @@ function play_note_adsr(midi_note)
   add_particles(midi_note)
   if midiOut then midiOut:note_on(midi_note, 100, MIDI_OUT_CH) end
 end
+-- 和音を発音。poly_spread>0 なら各音を時間差で散らす（ストラム/人間味）
+function play_chord(notes)
+  if #notes == 0 then return end
+  if poly_spread <= 0.001 or #notes == 1 then
+    for _, n in ipairs(notes) do play_note(n) end
+    return
+  end
+  local max_delay = poly_spread * 0.13   -- 最大 ~130ms の散らし
+  play_note(notes[1])                    -- 最初の音は即時
+  for i = 2, #notes do
+    local n      = notes[i]
+    local base   = (i - 1) / #notes * max_delay          -- 順番にずらす
+    local jitter = (math.random() - 0.5) * max_delay * 0.5 -- 少し不均一に
+    local d      = math.max(0, base + jitter)
+    clock.run(function()
+      clock.sleep(d)
+      play_note(n)
+    end)
+  end
+end
 function looper_capture(note, ev_type)
   if recording_slot then
     local t = util.time() - record_start
@@ -525,41 +548,36 @@ function start_auto()
         end
         local scale_len = #SCALES[scale_idx].intervals
         if math.random() < (1 - chance) then
+          local chord = {note}
           if poly_mode == 1 then
-            play_note(note)
+            -- MONO: 単音のみ
           elseif poly_mode == 2 then
-            play_note(note)
             local od = degree + scale_len
-            if od <= max_deg then play_note(get_scale_note(od))
-            else play_note(math.min(127, note + 12)) end
+            if od <= max_deg then table.insert(chord, get_scale_note(od))
+            else table.insert(chord, math.min(127, note + 12)) end
           elseif poly_mode == 3 then
-            play_note(note)
-            if degree + 4 <= max_deg then play_note(get_scale_note(degree + 4)) end
+            if degree + 4 <= max_deg then table.insert(chord, get_scale_note(degree + 4)) end
           elseif poly_mode == 4 then
-            play_note(note)
-            if degree + 2 <= max_deg then play_note(get_scale_note(degree + 2)) end
-            if degree + 4 <= max_deg then play_note(get_scale_note(degree + 4)) end
+            if degree + 2 <= max_deg then table.insert(chord, get_scale_note(degree + 2)) end
+            if degree + 4 <= max_deg then table.insert(chord, get_scale_note(degree + 4)) end
           elseif poly_mode == 5 then
-            play_note(note)
-            if degree + 2 <= max_deg then play_note(get_scale_note(degree + 2)) end
-            if degree + 4 <= max_deg then play_note(get_scale_note(degree + 4)) end
-            if degree + 6 <= max_deg then play_note(get_scale_note(degree + 6)) end
+            if degree + 2 <= max_deg then table.insert(chord, get_scale_note(degree + 2)) end
+            if degree + 4 <= max_deg then table.insert(chord, get_scale_note(degree + 4)) end
+            if degree + 6 <= max_deg then table.insert(chord, get_scale_note(degree + 6)) end
           elseif poly_mode == 6 then
-            play_note(note)
             local extra = math.random(1, 2)
             for _ = 1, extra do
               local rd = math.random(1, 5)
-              if degree + rd <= max_deg then play_note(get_scale_note(degree + rd)) end
+              if degree + rd <= max_deg then table.insert(chord, get_scale_note(degree + rd)) end
             end
           elseif poly_mode == 7 then
-            play_note(note)
-            if degree + 2 <= max_deg then play_note(get_scale_note(degree + 2)) end
-            if degree + 3 <= max_deg then play_note(get_scale_note(degree + 3)) end
+            if degree + 2 <= max_deg then table.insert(chord, get_scale_note(degree + 2)) end
+            if degree + 3 <= max_deg then table.insert(chord, get_scale_note(degree + 3)) end
           elseif poly_mode == 8 then
-            play_note(note)
-            if degree + 2 <= max_deg then play_note(get_scale_note(degree + 2)) end
-            if degree + 6 <= max_deg then play_note(get_scale_note(degree + 6)) end
+            if degree + 2 <= max_deg then table.insert(chord, get_scale_note(degree + 2)) end
+            if degree + 6 <= max_deg then table.insert(chord, get_scale_note(degree + 6)) end
           end
+          play_chord(chord)
         end
       end
       local densityHz = density * density * 8
@@ -637,16 +655,14 @@ function grid_redraw()
           end
           if row > 4 then g:led(16, row, 0) end
         else
-          if row == 3 then
-            local st = loops[1].state
-            local br = st == "recording" and 15
-                    or st == "playing"   and 7
-                    or st == "stopped"   and (blink_on and 5 or 0)
-                    or 1
-            g:led(16, 3, br)
-          else
-            g:led(16, row, 1)
-          end
+          -- MIDIルーパー: 各行=スロット（行3→1 … 行8→6）を全表示
+          local slot = row - 2
+          local st = loops[slot].state
+          local br = (st == "recording" or st == "stopping") and 15
+                  or st == "playing"   and 7
+                  or st == "stopped"   and (blink_on and 5 or 0)
+                  or 1
+          g:led(16, row, br)
         end
       end
     end
@@ -744,8 +760,13 @@ function init()
       engine[p.id](v)
     end)
   end
+  -- フィルタータイプ (E1でも変更可 / メニューからも選択・保存可)
+  params:add_option("filter_type", "FILTER TYPE", FILTER_TYPES, 1)
+  params:set_action("filter_type", function(v)
+    filter_type = v
+    engine.filterType(v - 1)
+  end)
   params:bang()
-  engine.filterType(filter_type)
   for _, dev in pairs(midi.devices) do
     if dev ~= nil then
       dev.event  = onMidi
@@ -841,9 +862,9 @@ function onMidi(data)
     -- CC 15-16: ADSR サスティン / リリース
     elseif msg.cc == 15 then params:set("sustain", v)
     elseif msg.cc == 16 then params:set("release", v)
-    -- CC 17: GAIN (マスターレベル)
+    -- CC 17: FILTER TYPE (0-127 → 1-4)
     elseif msg.cc == 17 then
-      master_level = v; engine.gain(master_level)
+      params:set("filter_type", util.clamp(math.floor(v * 4) + 1, 1, 4))
     -- CC 18: MODE (0-42=AUTO / 43-84=MIDI / 85-127=GRID)
     elseif msg.cc == 18 then
       local new_mode = math.floor(val / 128 * 3) + 1
@@ -1010,13 +1031,13 @@ function onGrid(x, y, z)
         local note   = get_scale_note(degree)
         if z == 1 then
           grid_notes[note] = true
-          if mode == 3 then
+          if mode == 2 or mode == 3 then
             play_note_adsr(note)
             looper_capture(note)
           end
         else
           grid_notes[note] = nil
-          if mode == 3 then
+          if mode == 2 or mode == 3 then
             engine.noteOff(note)
             if midiOut then midiOut:note_off(note, 0, MIDI_OUT_CH) end
             looper_capture(note, "off")
@@ -1031,26 +1052,29 @@ function enc(n, delta)
   if n == 1 then
     if k1_held then
       screen_page = ((screen_page - 1 + (delta > 0 and 1 or -1)) % 3) + 1
-    elseif screen_page == 1 then
-      local p = all_params[sel_item + 1]
-      if p and p.type == "control" and p.id == "filter" then
-        filter_type = util.clamp(filter_type + (delta > 0 and 1 or -1), 0, 3)
-        engine.filterType(filter_type)
-        show_overlay(FILTER_TYPE_NAMES[filter_type + 1])
+    else
+      -- E1: 選択中パラメータのタイプ変更（現状フィルターのみ）
+      if screen_page == 1 then
+        local p = all_params[sel_item + 1]
+        if p and p.id == "filter" then
+          local nv = util.clamp(filter_type + (delta > 0 and 1 or -1), 1, #FILTER_TYPES)
+          if nv ~= filter_type then params:set("filter_type", nv) end
+        end
       end
     end
     return
   end
   if screen_page == 2 then
     if n == 2 then
-      if delta > 0 and mel_col == 0 then mel_col = 1
-      elseif delta < 0 and mel_col == 1 then mel_col = 0 end
+      mel_col = util.clamp(mel_col + (delta > 0 and 1 or -1), 0, 2)
     elseif n == 3 then
       if mel_col == 0 then
         melody_mode = util.clamp(melody_mode + (delta > 0 and 1 or -1), 1, #MELODY_NAMES)
         last_degree = 7
-      else
+      elseif mel_col == 1 then
         poly_mode = util.clamp(poly_mode + (delta > 0 and 1 or -1), 1, #POLY_NAMES)
+      else
+        poly_spread = util.clamp(poly_spread + delta * 0.05, 0, 1)
       end
     end
     return
@@ -1152,7 +1176,7 @@ function key(n, z)
           sel_item = (sel_item + 4) % 16
         end
       elseif screen_page == 2 then
-        mel_col = 1 - mel_col
+        mel_col = (mel_col + 1) % 3
       end
     end
   end
@@ -1173,46 +1197,32 @@ function redraw()
   note_birds = alive_birds
   screen.clear()
   if screen_page ~= 3 then
-    screen.font_size(6)
+    -- ヘッダ（SPRE / MODE / TYPE / OCT を font8 で統一）
+    screen.font_size(8)
     screen.level(10)
-    screen.move(2, 7)
+    screen.move(2, 8)
     screen.text("SPRE")
     screen.level(15)
-    screen.move(64, 7)
+    screen.move(64, 8)
     screen.text_center(MODES[mode])
+    -- オクターブ表示（右端）
     local oct_str = (octave_shift >= 0 and "+" or "") .. octave_shift
-    screen.level(octave_shift == 0 and 4 or 12)
-    screen.move(88, 7)
+    screen.level(octave_shift == 0 and 7 or 15)
+    screen.move(127, 8)
     screen.text_right(oct_str)
-    -- VUメーター（縦バー）
-    local vu_h = 8
-    local vu_x = 90
-    local vu_y = 1
-    screen.level(2)
-    screen.rect(vu_x, vu_y, 3, vu_h); screen.stroke()
-    local fill_h = math.floor(math.min(1, amp_level * 6) * (vu_h-2))
-    if fill_h > 0 then
-      screen.level(fill_h > (vu_h-2)*0.8 and 15 or 10)
-      screen.rect(vu_x+1, vu_y+vu_h-1-fill_h, 1, fill_h); screen.fill()
+    -- 選択中パラメータのタイプ表示（E1で変更）
+    local ptype_str = ""
+    if screen_page == 1 then
+      local psel = all_params[sel_item + 1]
+      if psel and psel.id == "filter" then
+        ptype_str = FILTER_TYPES[filter_type]
+      end
     end
-    -- GAINバー
-    local gain_bar_x = 95
-    local gain_bar_max_w = 32
-    local gain_bar_w = math.floor(master_level * gain_bar_max_w)
-    screen.level(2)
-    screen.rect(gain_bar_x, 1, gain_bar_max_w, 4); screen.stroke()
-    if gain_bar_w > 0 then
-      local bar_lv
-      if master_level > 0.85 then bar_lv = 15
-      elseif master_level > 0.65 then bar_lv = 11
-      else bar_lv = 7 end
-      screen.level(bar_lv)
-      screen.rect(gain_bar_x, 1, gain_bar_w, 4); screen.fill()
+    if ptype_str ~= "" then
+      screen.level(15)
+      screen.move(108, 8); screen.text_right(ptype_str)
     end
-    screen.font_size(6)
-    screen.level(master_level > 0.85 and 15 or 4)
-    screen.move(gain_bar_x + gain_bar_max_w / 2, 8)
-    screen.text_center("G")
+    screen.font_size(7)
     screen.level(3)
     screen.move(0, 10)
     screen.line(128, 10)
@@ -1226,31 +1236,42 @@ function redraw()
     screen.font_size(16)
     screen.move(64, 38)
     screen.text_center(display_text)
-    screen.font_size(6)
+    screen.font_size(7)
     screen.update()
     return
   end
-  -- ===== MELODYページ =====
+  -- ===== MELODYページ（3カラム: MEL / POLY / STRUM）=====
   if screen_page == 2 then
     local max_deg = #SCALES[scale_idx].intervals * 2 - 1
-    local lcx, rcx = 32, 96
-    local icon_cy  = 36
-    local lbl_y    = 54
+    local cxs   = {21, 64, 106}
+    local heads = {"MEL", "POLY", "STRUM"}
+    local icy   = 36
+    local lbl_y = 54
     local BOX_Y, BOX_H = 22, 34
+    local box_x = {1, 44, 87}
+    local box_w = {41, 41, 40}
+    -- 区切り線
     screen.level(3)
-    screen.move(64, 11); screen.line(64, 63); screen.stroke()
-    screen.font_size(6)
-    screen.level(mel_col == 0 and 15 or 5)
-    screen.move(lcx, 19); screen.text_center("MELODY")
-    if mel_col == 0 then screen.move(lcx-16,20); screen.line(lcx+16,20); screen.stroke() end
-    screen.level(mel_col == 1 and 15 or 5)
-    screen.move(rcx, 19); screen.text_center("POLY")
-    if mel_col == 1 then screen.move(rcx-10,20); screen.line(rcx+10,20); screen.stroke() end
-    local l_inv = (mel_col == 0)
-    if l_inv then screen.level(15); screen.rect(2, BOX_Y, 61, BOX_H); screen.fill() end
-    local icx, icy = lcx, icon_cy
-    local il = l_inv and 0 or 12
-    screen.level(il)
+    screen.move(43, 11); screen.line(43, 63); screen.stroke()
+    screen.move(85, 11); screen.line(85, 63); screen.stroke()
+    -- 選択カラムのボックス反転
+    screen.level(15)
+    screen.rect(box_x[mel_col+1], BOX_Y, box_w[mel_col+1], BOX_H); screen.fill()
+    -- ヘッダ
+    screen.font_size(7)
+    for c = 0, 2 do
+      local sel = (mel_col == c)
+      screen.level(sel and 15 or 5)
+      screen.move(cxs[c+1], 19); screen.text_center(heads[c+1])
+      if sel then
+        local hw = #heads[c+1] * 3
+        screen.move(cxs[c+1]-hw, 20); screen.line(cxs[c+1]+hw, 20); screen.stroke()
+      end
+    end
+    -- --- カラム0: MELODY ---
+    local icx = cxs[1]
+    local inv = (mel_col == 0)
+    screen.level(inv and 0 or 12)
     if melody_mode == 1 then
       local pts = {{-10,-5},{5,-10},{11,3},{-3,9},{9,-3},{-9,5},{1,11},{-5,-10}}
       for _, p in ipairs(pts) do
@@ -1288,14 +1309,12 @@ function redraw()
       screen.line(icx+6, icy-3); screen.line(icx+6, icy-9); screen.line(icx+12, icy-9)
       screen.stroke()
     end
-    screen.level(l_inv and 0 or 10)
-    screen.font_size(6)
-    screen.move(lcx, lbl_y); screen.text_center(MELODY_NAMES[melody_mode])
-    local r_inv = (mel_col == 1)
-    if r_inv then screen.level(15); screen.rect(66, BOX_Y, 61, BOX_H); screen.fill() end
-    icx = rcx
-    local rl = r_inv and 0 or 12
-    screen.level(rl)
+    screen.level(inv and 0 or 10)
+    screen.move(cxs[1], lbl_y); screen.text_center(MELODY_NAMES[melody_mode])
+    -- --- カラム1: POLY ---
+    icx = cxs[2]
+    inv = (mel_col == 1)
+    screen.level(inv and 0 or 12)
     if poly_mode == 1 then
       screen.move(icx-13, icy); screen.line(icx+13, icy); screen.stroke()
       screen.move(icx+3, icy); screen.circle(icx, icy, 3); screen.fill()
@@ -1344,9 +1363,25 @@ function redraw()
         screen.move(nx+2, ly); screen.circle(nx, ly, 2); screen.fill()
       end
     end
-    screen.level(r_inv and 0 or 10)
-    screen.font_size(6)
-    screen.move(rcx, lbl_y); screen.text_center(POLY_NAMES[poly_mode])
+    screen.level(inv and 0 or 10)
+    screen.move(cxs[2], lbl_y); screen.text_center(POLY_NAMES[poly_mode])
+    -- --- カラム2: STRUM（和音の発音タイミングの散らし）---
+    icx = cxs[3]
+    inv = (mel_col == 2)
+    screen.level(inv and 0 or 12)
+    screen.move(icx-14, icy+9); screen.line(icx+14, icy+9); screen.stroke()  -- 基準線
+    do
+      local ntick = 4
+      for k = 0, ntick-1 do
+        local off = math.floor((k - (ntick-1)/2) * poly_spread * 9)   -- 時間方向の散らし
+        local yy  = icy + 6 - k * 4                                    -- 音を段々に
+        screen.move(icx+off, icy+9); screen.line(icx+off, yy); screen.stroke() -- ステム
+        screen.move(icx+off+2, yy); screen.circle(icx+off, yy, 1.5); screen.fill() -- 音符
+      end
+    end
+    screen.level(inv and 0 or 10)
+    screen.move(cxs[3], lbl_y); screen.text_center(string.format("%d", math.floor(poly_spread*99)))
+    -- 履歴スパークライン
     if #degree_history > 1 then
       for hi, dg in ipairs(degree_history) do
         local dx = math.floor((hi-1)/(#degree_history-1)*124)+2
@@ -1358,118 +1393,132 @@ function redraw()
     screen.update()
     return
   end
-  -- ===== ビューワーページ =====
+  -- ===== ビューワーページ（MOTHER3風・雨の路地裏）=====
   if screen_page == 3 then
-    local fm   = params:get("fmAmt")
-    local sat  = params:get("saturation")
-    local tape = params:get("tapeAmt")
-    local bri  = params:get("bright")
-    local filt = params:get("filter")
-    local sp = params:get("spread")
-    if sp > 0.01 then
-      local n_fog = math.floor(sp * 48)
-      for fi = 0, n_fog - 1 do
-        local fx = math.floor(((math.sin(fi * 3.7 + wave_phase * 0.4) + 1) / 2) * 127)
-        local fy = math.floor(((math.cos(fi * 2.1 + wave_phase * 0.3 + 1.3) + 1) / 2) * 63)
-        screen.level(math.floor(sp * 4 + 1))
-        screen.pixel(fx, fy); screen.fill()
+    viewer_t = viewer_t + 1
+    local t  = viewer_t
+    local bx = 62
+    local floor_y = 52
+
+    -- 楕円の水たまり
+    local function puddle(px, py, rw, rh, lv)
+      screen.level(lv)
+      for dx = -rw, rw do
+        local h = math.floor(math.sqrt(math.max(0, 1 - (dx/rw)^2)) * rh)
+        if h > 0 then screen.rect(px + dx, py - h, 1, h * 2 + 1); screen.fill() end
       end
     end
-    local mtn_level = math.max(3, math.floor(bri * 6 + 3))
-    for xi = 0, 127 do
-      local t     = xi / 127
-      local phase = t * math.pi * 5 + wave_phase * 0.25
-      local y_val = math.sin(phase)
-      y_val = y_val + math.sin(phase*2.5 + math.sin(phase*0.8)*fm*4) * fm * 0.8
-      y_val = y_val / (1 + fm * 0.8)
-      if sat > 0.01 then
-        y_val = math.tanh(y_val * (1 + sat * 8)) / math.tanh(1 + sat * 0.5)
-      end
-      if tape > 0.01 then
-        y_val = y_val + math.sin(xi * 6.7) * math.sin(xi * 2.3 + 0.9) * tape * 0.3
-      end
-      local mtn_top = math.floor(52 - y_val * 7)
-      mtn_top = math.max(44, math.min(60, mtn_top))
-      screen.level(mtn_level)
-      screen.rect(xi, mtn_top, 1, 64 - mtn_top)
-      screen.fill()
+
+    -- 路地の抜け（空）と遠くの町並み
+    screen.level(1); screen.rect(44, 4, 40, 30); screen.fill()
+    screen.level(3)
+    screen.rect(48, 22, 10, 9); screen.fill()
+    screen.rect(60, 17, 15, 14); screen.fill()
+    screen.rect(76, 24, 7, 7); screen.fill()
+    screen.level(2)
+    screen.move(48,22); screen.line(53,18); screen.line(58,22); screen.fill()
+    screen.move(60,17); screen.line(67,12); screen.line(75,17); screen.fill()
+
+    -- 左右のビル
+    screen.level(3)
+    screen.rect(0,  0, 44, 40); screen.fill()
+    screen.rect(84, 0, 44, 40); screen.fill()
+    screen.level(0)
+    screen.move(44,0); screen.line(44,14); screen.line(30,0); screen.fill()
+    screen.move(84,0); screen.line(84,14); screen.line(98,0); screen.fill()
+    screen.level(2)
+    for by = 6, 38, 5 do
+      screen.move(0, by); screen.line(42, by); screen.stroke()
+      screen.move(86, by); screen.line(127, by); screen.stroke()
     end
-    local sun_x   = 20
-    local sun_y   = 14
-    local res_v   = 1 - filt
-    local r_inner = math.max(2, math.floor(filt * 4 + 2))
-    local spike   = res_v * 5
-    screen.level(14)
-    screen.circle(sun_x, sun_y, r_inner)
+    screen.level(6)
+    screen.move(43, 6); screen.line(43, 40); screen.stroke()
+    screen.move(84, 6); screen.line(84, 40); screen.stroke()
+    screen.level(1); screen.rect(8, 16, 8, 9); screen.fill()
+    screen.level(5); screen.rect(8, 16, 8, 1); screen.fill()
+    screen.level(1); screen.rect(112, 30, 9, 8); screen.fill()
+
+    -- 街灯（右壁）＋グロー
+    local lx, ly = 98, 22
+    screen.level(2); screen.move(lx+7, ly); screen.circle(lx, ly, 7); screen.fill()
+    screen.level(5); screen.move(lx+4, ly); screen.circle(lx, ly, 4); screen.fill()
+    screen.level(9); screen.move(lx+2, ly); screen.circle(lx, ly, 2); screen.fill()
+    screen.level(15); screen.rect(lx-1, ly-1, 2, 2); screen.fill()
+    screen.level(6)
+    screen.move(lx, ly-6); screen.line(lx, ly-9); screen.stroke()
+    screen.move(lx, ly-9); screen.line(lx+9, ly-9); screen.stroke()
+    screen.move(lx+9, ly-9); screen.line(lx+9, ly-6); screen.stroke()
+
+    -- 濡れた地面
+    screen.level(2); screen.rect(0, 38, 128, 26); screen.fill()
+    puddle(60, 60, 20, 3, 4)
+    puddle(30, 55, 10, 2, 4)
+    puddle(100, 61, 13, 3, 4)
+    puddle(bx, floor_y + 2, 12, 2, 3)
+    -- 波紋
+    local rings = {{60,60,0},{30,55,15},{100,61,29}}
+    for _, r in ipairs(rings) do
+      local ph = (t + r[3]) % 44
+      if ph < 12 then
+        screen.level(math.max(2, 6 - math.floor(ph/3)))
+        local rr = 2 + math.floor(ph * 0.6)
+        screen.move(r[1]+rr, r[2]); screen.circle(r[1], r[2], rr); screen.stroke()
+      end
+    end
+
+    -- 小物: 樽（左手前）とタイヤ（右手前）
+    screen.level(4); screen.rect(6, 50, 16, 12); screen.stroke()
+    screen.move(6,50); screen.line(22,62); screen.stroke()
+    screen.move(22,50); screen.line(6,62); screen.stroke()
+    screen.level(3)
+    screen.move(114,60); screen.circle(108,60,6); screen.stroke()
+    screen.move(111,60); screen.circle(108,60,3); screen.stroke()
+
+    -- 雨（少年の背後）
+    for i = 0, 44 do
+      local rx = (i * 37 + math.floor(t * 6)) % 140 - 6
+      local ry = (i * 53 + math.floor(t * 9)) % 60
+      screen.level((i % 4 == 0) and 8 or 4)
+      screen.move(rx, ry); screen.line(rx - 2, ry + 5); screen.stroke()
+    end
+
+    -- 少年（後ろ姿・傘）。たまに足を動かす
+    if boy_shuffle <= 0 and math.random() < 0.015 then boy_shuffle = 12 end
+    if boy_shuffle > 0 then boy_shuffle = boy_shuffle - 1 end
+    local step = (boy_shuffle > 0) and math.floor(math.sin(t * 0.8) * 1.5 + 0.5) or 0
+
+    screen.level(5)
+    screen.rect(bx - 3 - step, 46, 2, 5); screen.fill()
+    screen.rect(bx + 1 + step, 46, 2, 5); screen.fill()
+    screen.level(7)
+    screen.rect(bx - 4 - step, 50, 3, 2); screen.fill()
+    screen.rect(bx + 1 + step, 50, 3, 2); screen.fill()
+    -- ボーダーシャツ
+    for sy = 0, 7 do
+      screen.level((sy % 2 == 0) and 11 or 4)
+      screen.rect(bx - 4, 38 + sy, 9, 1); screen.fill()
+    end
+    -- 傘（後ろ＆上から: 楕円ドーム＋放射状の骨）
+    local ucx, ucy, urx, ury = bx, 32, 14, 7
+    local up = {}
+    for k = 0, 8 do
+      local a = k / 8 * math.pi * 2
+      up[k+1] = { ucx + math.cos(a) * urx, ucy + math.sin(a) * ury }
+    end
+    screen.level(6)
+    screen.move(up[1][1], up[1][2])
+    for k = 2, 9 do screen.line(up[k][1], up[k][2]) end
     screen.fill()
-    if spike > 0.5 then
-      for si = 0, 9 do
-        local angle = si / 10 * math.pi * 2
-        local sp2 = spike * (1 + math.sin(wave_phase * 2 + si * 0.8) * 0.3 * res_v)
-        local x1 = sun_x + math.floor(r_inner * math.cos(angle))
-        local y1 = sun_y + math.floor(r_inner * math.sin(angle))
-        local x2 = sun_x + math.floor((r_inner + sp2) * math.cos(angle))
-        local y2 = sun_y + math.floor((r_inner + sp2) * math.sin(angle))
-        screen.level(11)
-        screen.move(x1, y1); screen.line(x2, y2); screen.stroke()
-      end
+    screen.level(3)
+    for k = 1, 8 do
+      screen.move(ucx, ucy); screen.line(up[k][1], up[k][2]); screen.stroke()
     end
-    local dust_val = params:get("dust")
-    if dust_val > 0.02 then
-      local flash = math.sin(wave_phase * 3.1) * math.sin(wave_phase * 7.9 + 1.3)
-      local threshold = 1 - dust_val * 1.8
-      if flash > threshold then
-        local lx = 20 + math.floor(math.abs(math.sin(wave_phase * 5.7)) * 88)
-        local cur_x = lx
-        local cur_y = 2
-        local n_seg = 5 + math.floor(dust_val * 3)
-        local bolt_h = math.floor(35 + dust_val * 14)
-        screen.level(math.floor(dust_val * 3 + 1))
-        screen.rect(math.max(0, lx - 4), 0, 9, bolt_h)
-        screen.fill()
-        screen.level(15)
-        for i = 1, n_seg do
-          local ny = math.floor(cur_y + bolt_h / n_seg)
-          local nx = cur_x + math.floor(math.sin(wave_phase * (i * 4.3 + 2.1)) * 10)
-          nx = math.max(4, math.min(124, nx))
-          screen.move(cur_x, cur_y); screen.line(nx, ny); screen.stroke()
-          cur_x = nx; cur_y = ny
-        end
-      end
-    end
-    local rain_count = math.floor(density * chance * 24)
-    for di = 0, rain_count - 1 do
-      local rx_base = math.floor(((math.sin(di * 2.7 + 1.1) + 1) / 2) * 124)
-      local t = ((wave_phase * 1.5 + di * 0.61) % (math.pi * 2)) / (math.pi * 2)
-      local ry = math.floor(t * 72) - 8
-      local rx = rx_base + math.floor(t * 10)
-      local drop_len = 3 + math.floor(density * 5)
-      screen.level(math.floor(chance * 8 + 4))
-      for si = 0, drop_len do
-        local sy = ry + si
-        local sx = rx - math.floor(si * 0.4)
-        if sx >= 0 and sx < 128 and sy >= 0 and sy < 64 then
-          screen.pixel(sx, sy); screen.fill()
-        end
-      end
-    end
-    for _, b in ipairs(note_birds) do
-      local bx = math.floor(b.x * 128 / 38)
-      local by = 6 + math.floor((b.y + 3) * 2)
-      if bx >= 5 and bx <= 121 then
-        screen.level(15)
-        screen.pixel(bx,   by); screen.fill()
-        screen.pixel(bx+1, by); screen.fill()
-        local flap = math.sin(wave_phase * 6 + b.flap_phase) > 0
-        if flap then
-          screen.move(bx-5, by+3); screen.line(bx,   by-1); screen.stroke()
-          screen.move(bx+6, by+3); screen.line(bx+1, by-1); screen.stroke()
-        else
-          screen.move(bx-5, by-3); screen.line(bx,   by+1); screen.stroke()
-          screen.move(bx+6, by-3); screen.line(bx+1, by+1); screen.stroke()
-        end
-      end
-    end
+    screen.level(10)
+    screen.move(up[1][1], up[1][2])
+    for k = 2, 9 do screen.line(up[k][1], up[k][2]) end
+    screen.stroke()
+    screen.move(ucx, ucy - ury); screen.line(ucx, ucy - ury - 3); screen.stroke()
+
     screen.update()
     return
   end
@@ -1534,7 +1583,7 @@ function redraw()
     else
       screen.level(6)
     end
-    screen.font_size(6)
+    screen.font_size(7)
     screen.move(cx, cy + CR + 8); screen.text_center(lbl)
   end
   local function draw_env_box(ax, ay, dx, val_atk, val_dec, sel_atk, sel_dec)
@@ -1567,7 +1616,7 @@ function redraw()
       screen.line(mid+xi, yy)
     end
     screen.stroke()
-    screen.font_size(6)
+    screen.font_size(7)
     if sel_atk then screen.level(15); screen.rect(x0+atk_w/2-8, ay+CR, 16, 8); screen.fill(); screen.level(0)
     else screen.level(5) end
     screen.move(x0 + atk_w / 2, ay + CR + 6); screen.text_center("ATK")
@@ -1621,7 +1670,7 @@ function redraw()
       local sbx  = subx[si+1] - sw/2
       local smbx = subx[si+1] - 9  -- fixed 19px bar, centered
       local sv   = params:get(subids[si+1])
-      screen.font_size(6)
+      screen.font_size(7)
       -- bar (always same style)
       screen.level(2); screen.rect(smbx, yc+CR+1, 19, 1); screen.fill()
       local bw = math.floor(sv * 19)
@@ -1640,7 +1689,7 @@ function redraw()
   local cur_page   = math.floor(sel_item / 8)
   local page_start = cur_page * 8
   local skip_count = 0
-  screen.font_size(6)
+  screen.font_size(7)
   for i = 0, 7 do
     if skip_count > 0 then skip_count = skip_count - 1 goto continue end
     local p = all_params[page_start + i + 1]
@@ -1690,12 +1739,12 @@ function redraw()
       else lbl = p.name end
       if p.type == "mode" or p.type == "root" or p.type == "scale" then
         local lw = #lbl * 5 + 4
-        screen.font_size(6)
+        screen.font_size(7)
         if is_sel then screen.level(15); screen.rect(cx-lw/2, cy-8, lw, 8); screen.fill(); screen.level(0)
         else screen.level(4) end
         screen.move(cx, cy-3); screen.text_center(lbl)
         screen.level(is_sel and 15 or 12)
-        screen.font_size(6)
+        screen.font_size(7)
         screen.move(cx, cy+7); screen.text_center(vs)
         goto continue
       end
@@ -1741,7 +1790,7 @@ function redraw()
         else
           screen.level(5)
         end
-        screen.font_size(6)
+        screen.font_size(7)
         screen.move(cx, cy + CR + 8); screen.text_center(lbl)
         goto continue
       end
@@ -1780,7 +1829,7 @@ function redraw()
           screen.rect(fx0, fy0, FW, FH); screen.stroke()
           local px0 = fx0 + 1
           local lby = cy + CR + 6
-          screen.font_size(6)
+          screen.font_size(7)
           local function draw_env_section(sel, bx, bw, get_y)
             if sel then screen.level(15); screen.rect(bx, fy0+1, bw, FH-2); screen.fill() end
             screen.level(sel and 0 or 8)
@@ -1795,7 +1844,7 @@ function redraw()
             return bot_y - (t^0.35) * (bot_y - peak_y)
           end)
           local function adsr_lbl(sel, mx, txt)
-            screen.font_size(6)
+            screen.font_size(7)
             local w = #txt * 4 + 4
             if sel then screen.level(15); screen.rect(mx-w/2, lby-6, w, 8); screen.fill(); screen.level(0)
             else screen.level(5) end
@@ -1872,7 +1921,7 @@ function redraw()
               end
             end
           end
-          screen.font_size(6)
+          screen.font_size(7)
           if sel_d then screen.level(15); screen.rect(cx-14, cy+CR, 28, 8); screen.fill(); screen.level(0)
           else screen.level(5) end
           screen.move(cx, cy + CR + 6); screen.text_center("FLOCK")
@@ -1950,7 +1999,7 @@ function redraw()
         else
           screen.level(5)
         end
-        screen.font_size(6)
+        screen.font_size(7)
         screen.move(cx, cy + CR + 8); screen.text_center(lbl)
         goto continue
       end
@@ -1999,13 +2048,13 @@ function redraw()
         else
           screen.level(5)
         end
-        screen.font_size(6)
+        screen.font_size(7)
         screen.move(cx, cy + CR + 8); screen.text_center(lbl)
         goto continue
       end
       if p.type == "gain" then
         local lw = #lbl * 5 + 4
-        screen.font_size(6)
+        screen.font_size(7)
         if is_sel then screen.level(15); screen.rect(cx-lw/2, cy-8, lw, 8); screen.fill(); screen.level(0)
         else screen.level(4) end
         screen.move(cx, cy - 3); screen.text_center(lbl)
@@ -2025,10 +2074,10 @@ function redraw()
       end
       if p.type == "looper" then
         local lbl_w = #lbl * 5 + 4
-        screen.font_size(6)
-        if is_sel then screen.level(15); screen.rect(cx-lbl_w/2, cy-CR, lbl_w, 8); screen.fill(); screen.level(0)
+        screen.font_size(7)
+        if is_sel then screen.level(15); screen.rect(cx-lbl_w/2, cy-8, lbl_w, 8); screen.fill(); screen.level(0)
         else screen.level(5) end
-        screen.move(cx, cy - CR + 5); screen.text_center(lbl)
+        screen.move(cx, cy-3); screen.text_center(lbl)
         if looper_mode == 1 then
           local st  = loops[1].state
           local icy = cy + 4
@@ -2103,29 +2152,41 @@ function redraw()
         local stripe_ph  = math.floor(wave_phase * 4) % stripe_per
         local left_melt  = math.max(0, (0.5 - val) * 2)
         local right_melt = math.max(0, (val - 0.5) * 2)
-        local left_h     = base_h + left_melt  * extra_h
-        local right_h    = base_h + right_melt * extra_h
-        local left_mw    = base_w + left_melt  * extra_w
-        local right_mw   = base_w + right_melt * extra_w
-        local max_h      = math.max(left_h, right_h)
         local base_lv    = is_sel and 14 or 9
-        for row2 = math.floor(icon_cy - max_h), math.floor(icon_cy + max_h) do
-          local dy    = math.abs(row2 - icon_cy)
-          local lw    = dy < left_h  and math.floor((1-dy/left_h)  * left_mw)  or 0
-          local rw    = dy < right_h and math.floor((1-dy/right_h) * right_mw) or 0
-          if lw > 0 or rw > 0 then
-            local base_w2 = dy < base_h and math.floor((1-dy/base_h)*base_w) or 0
-            local prog    = dy / max_h
-            local lv      = math.max(2, math.floor((1-prog*0.72)*base_lv))
-            for x = cx - lw, cx + rw do
-              local in_base = (x >= cx - base_w2 and x <= cx + base_w2)
-              if in_base then
-                screen.level(lv)
-                screen.pixel(x, row2); screen.fill()
-              else
-                if (x - row2 + stripe_ph + 100) % stripe_per < 2 then
-                  screen.level(math.max(2, lv + 2))
+        local centered   = math.abs(val - 0.5) < 0.02
+        if centered then
+          -- 中央: 中身をくり抜いた（黒い）ダイヤ = 輪郭のみ
+          screen.level(base_lv)
+          screen.move(cx - base_w, icon_cy)
+          screen.line(cx,          icon_cy - base_h)
+          screen.line(cx + base_w, icon_cy)
+          screen.line(cx,          icon_cy + base_h)
+          screen.line(cx - base_w, icon_cy)
+          screen.stroke()
+        else
+          local left_h     = base_h + left_melt  * extra_h
+          local right_h    = base_h + right_melt * extra_h
+          local left_mw    = base_w + left_melt  * extra_w
+          local right_mw   = base_w + right_melt * extra_w
+          local max_h      = math.max(left_h, right_h)
+          for row2 = math.floor(icon_cy - max_h), math.floor(icon_cy + max_h) do
+            local dy    = math.abs(row2 - icon_cy)
+            local lw    = dy < left_h  and math.floor((1-dy/left_h)  * left_mw)  or 0
+            local rw    = dy < right_h and math.floor((1-dy/right_h) * right_mw) or 0
+            if lw > 0 or rw > 0 then
+              local base_w2 = dy < base_h and math.floor((1-dy/base_h)*base_w) or 0
+              local prog    = dy / max_h
+              local lv      = math.max(2, math.floor((1-prog*0.72)*base_lv))
+              for x = cx - lw, cx + rw do
+                local in_base = (x >= cx - base_w2 and x <= cx + base_w2)
+                if in_base then
+                  screen.level(lv)
                   screen.pixel(x, row2); screen.fill()
+                else
+                  if (x - row2 + stripe_ph + 100) % stripe_per < 2 then
+                    screen.level(math.max(2, lv + 2))
+                    screen.pixel(x, row2); screen.fill()
+                  end
                 end
               end
             end
@@ -2145,16 +2206,16 @@ function redraw()
         else
           screen.level(6)
         end
-        screen.font_size(6)
+        screen.font_size(7)
         screen.move(cx, cy + CR + 8); screen.text_center(lbl)
         goto continue
       end
       if p.type == "sc_rate" then
         local lbl_w = #lbl * 5 + 4
-        if is_sel then screen.level(15); screen.rect(cx-lbl_w/2, cy-CR, lbl_w, 8); screen.fill(); screen.level(0)
+        if is_sel then screen.level(15); screen.rect(cx-lbl_w/2, cy-8, lbl_w, 8); screen.fill(); screen.level(0)
         else screen.level(6) end
-        screen.font_size(6)
-        screen.move(cx, cy-CR+5); screen.text_center(lbl)
+        screen.font_size(7)
+        screen.move(cx, cy-3); screen.text_center(lbl)
         screen.level(is_sel and 15 or 11)
         if sc_dir[looper_sel_slot] < 0 then
           screen.move(cx+6, cy-1); screen.line(cx-5, cy+4)
@@ -2170,9 +2231,9 @@ function redraw()
         goto continue
       end
       if p.type == "sc_speed" then
-        screen.font_size(6)
+        screen.font_size(7)
         screen.level(is_sel and 15 or 6)
-        screen.move(cx, cy-CR+4); screen.text_center(lbl)
+        screen.move(cx, cy-3); screen.text_center(lbl)
         local spd = sc_speed[looper_sel_slot]
         local norm
         if spd < 1.0 then norm = (spd - 0.25) / 0.75 * 0.5
@@ -2214,9 +2275,9 @@ function redraw()
         goto continue
       end
       if p.type == "sc_level" then
-        screen.font_size(6)
+        screen.font_size(7)
         screen.level(is_sel and 15 or 6)
-        screen.move(cx, cy-CR+4); screen.text_center(lbl)
+        screen.move(cx, cy-3); screen.text_center(lbl)
         local bx = cx - CR + 1
         local bw = CR * 2 - 2
         local by = cy + 3
@@ -2239,8 +2300,5 @@ function redraw()
     screen.level(pg == cur_page and 15 or 3)
     screen.pixel(62 + pg * 5, 2); screen.fill()
   end
-  local oct_str = (octave_shift >= 0 and "+" or "") .. octave_shift
-  screen.level(octave_shift == 0 and 3 or 12)
-  screen.move(126, 6); screen.text_right(oct_str)
   screen.update()
 end
