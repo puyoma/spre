@@ -1,2 +1,243 @@
 # spre
-A living ambient ecosystem for norns.
+
+**A generative synthesizer for monome norns.**
+
+spre combines a 12-voice SuperCollider synthesis engine with five melody generators, eight polyphonic voicings, scale quantization, MIDI and grid performance modes, and two kinds of looping. It can play by itself, respond to an external MIDI keyboard, or become a scale-aware instrument on a 16×8 grid.
+
+The sound moves between clean, resonant tones and saturated, dusty, tape-worn textures. Melody and harmony can be reshaped while the instrument is running.
+
+> 日本語の説明は[こちら](#日本語)です。
+
+## Requirements
+
+- monome norns
+- 16×8 grid: optional
+- USB MIDI keyboard/controller: optional
+
+spre includes its own SuperCollider engine. Restart norns after the first installation.
+
+The project should contain at least:
+
+```text
+spre/
+├── spre.lua
+├── README.md
+└── lib/
+    └── Engine_Spre.sc
+```
+
+## Installation
+
+In the Maiden REPL:
+
+```text
+;install https://github.com/puyoma/spre
+```
+
+Restart norns, then launch `spre` from SELECT.
+
+## Quick start
+
+spre starts in **AUTO** mode and begins generating notes automatically.
+
+- Turn **E1** to set the output level.
+- Turn **E2** to select a parameter.
+- Turn **E3** to change the selected parameter.
+- Press **K3** to open the MELODY / POLY page.
+- Set **DENSITY** to zero to stop new AUTO notes.
+
+Start with E1 at a low level. Saturation, resonance, chords, and dense event settings can create sudden level changes.
+
+## norns controls
+
+These controls work from the main parameter page unless noted otherwise.
+
+| Control | Action |
+|---|---|
+| E1 | Master level |
+| E2 | Select parameter |
+| E3 | Change selected parameter |
+| K2 | Jump to the next parameter row |
+| K3 | Toggle between parameter and MELODY / POLY pages |
+| K1 + E1 | Cycle parameter, MELODY / POLY, and visualizer pages |
+| K1 + K2 | Octave down |
+| K1 + K3 | Octave up |
+| K2 + K3 | Clear the selected audio loop, or note-loop slot 1 |
+
+When **LOOP** is selected, K2 operates the loop instead of jumping to the next row.
+
+On the MELODY / POLY page:
+
+| Control | Action |
+|---|---|
+| E2 or K2 | Select MELODY or POLY |
+| E3 | Choose the algorithm or voicing |
+| K3 | Return to the parameter page |
+
+The visualizer page has no dedicated editing controls. Use K1 + E1 to leave it.
+
+## Modes
+
+### AUTO
+
+The internal generator creates notes from the selected ROOT and SCALE.
+
+- **DENSITY** controls how frequently events are generated. Zero stops new notes.
+- **CHANCE** is the probability that a generated event will be skipped. At zero, every event plays; at maximum, all events are skipped.
+- **ATK / DEC** shape the percussive envelope.
+- MELODY chooses how pitches move.
+- POLY chooses how each pitch is voiced.
+
+### MIDI
+
+Incoming MIDI notes are quantized to ROOT and SCALE, then played with an ADSR envelope. ATTACK, DECAY, SUSTAIN, and RELEASE become available on the parameter page.
+
+### GRID
+
+A connected 16×8 grid becomes a scale-based keyboard. Notes sound while held and use the same ADSR envelope as MIDI mode.
+
+## Melody generators
+
+| Name | Behaviour |
+|---|---|
+| RAND | Uniform random notes, with occasional octave jumps |
+| GAUSS | Random movement weighted toward the middle of the range |
+| MRKV | Markov-like movement that tends to stay near the previous note |
+| ORBIT | Movement attracted to chord tones, with approaches and occasional jumps |
+| FOLD | A four-note motif that gradually climbs and descends |
+
+## Polyphonic voicings
+
+Intervals follow degrees of the selected scale.
+
+| Name | Voicing |
+|---|---|
+| MONO | Single note |
+| OCT | Note plus octave |
+| 5TH | Note plus four scale degrees |
+| TRIAD | Note plus two and four scale degrees |
+| 7TH | TRIAD plus six scale degrees |
+| RAND | One or two random upper scale tones |
+| ADD4 | Note plus two and three scale degrees |
+| JAZZ | Note plus two and six scale degrees |
+
+## Sound parameters
+
+| Parameter | Description |
+|---|---|
+| BRIT | Envelope-linked brightness |
+| SAT | Saturation and drive |
+| ATK | Attack time and contour |
+| DEC | Percussive decay in AUTO; ADSR decay in MIDI / GRID |
+| FM | Pitch modulation depth |
+| TAPE | Flutter, sample-rate reduction, filtering, and tape noise |
+| FILTER | Combined cutoff/resonance control: left is darker and more resonant; right is brighter and more open |
+| DUST | Clicks and noisy high-frequency texture |
+| SPREAD | Randomized stereo placement |
+| INTONE | Tuning color: center is equal temperament; turning away introduces interval-dependent offsets |
+| SUSTAIN | ADSR sustain in MIDI / GRID |
+| RELEASE | ADSR release in MIDI / GRID |
+
+## Loopers
+
+spre has two loop systems.
+
+### Note looper
+
+- Six slots are available from grid column 16, rows 3–8.
+- First press: record.
+- Second press: finish recording and begin playback.
+- Further presses: stop / resume.
+- Double press: clear that slot.
+- Without a grid, select LOOP and press K2 to operate slot 1.
+
+The note looper records timing as performed; it is not beat-quantized.
+
+### Audio looper
+
+Two softcut audio slots are available. Each slot can record up to approximately 30 seconds.
+
+The audio looper receives spre's engine output as well as the norns audio inputs.
+
+- Select the audio looper and slot with the LOOP control.
+- First press: record.
+- Second press: close the loop on the next clock beat and begin playback.
+- Further presses: stop / resume.
+- Double press on grid, or K2 + K3, clears the selected slot.
+- Direction, speed (×0.25–×4), and level can be changed from the parameter page.
+
+Ending a new audio recording sets DENSITY to zero so the recorded loop can be heard clearly.
+
+## 16×8 grid layout
+
+### AUTO mode
+
+| Grid area | Function |
+|---|---|
+| Row 1, columns 1–12 | Root pitch class |
+| Row 1, columns 15–16 | Octave down / up |
+| Row 2, columns 1–16 | Scale selection |
+| Row 3, columns 1–8 / 9–15 | DENSITY / BRIT |
+| Row 4, columns 1–8 / 9–15 | CHANCE / SAT |
+| Row 5, columns 1–8 / 9–15 | ATK / TAPE |
+| Row 6, columns 1–8 / 9–15 | DEC / DUST |
+| Row 7, columns 1–8 / 9–15 | FM / SPREAD |
+| Row 8, columns 1–8 / 9–15 | FILTER / INTONE |
+| Column 16, rows 3–8 | Loop slots 1–6; audio looper uses slots 1–2 |
+
+### MIDI / GRID modes
+
+| Grid area | Function |
+|---|---|
+| Row 1, columns 1–12 | Root pitch class |
+| Row 1, columns 15–16 | Octave down / up |
+| Row 2, columns 1–16 | Scale selection |
+| Rows 3–8, columns 1–15 | Scale-note keyboard |
+| Column 16, rows 3–8 | Loop slots |
+
+The grid directly plays notes only in GRID mode.
+
+## Included scales
+
+Minor pentatonic, major pentatonic, major, minor, Dorian, Lydian, Mixolydian, Phrygian, Locrian, Phrygian dominant, blues, whole tone, diminished, Hungarian minor, In Sen, Hirajoshi, Arabic, bebop major, enigmatic, and chromatic.
+
+The norns interface and MIDI CC 20 can access all 20 scales. The 16×8 grid’s second row directly selects the first 16.
+
+## MIDI CC
+
+| CC | Function |
+|---:|---|
+| 1–12 | DENSITY, CHANCE, ATK, DEC, FM, FILTER, BRIT, SAT, TAPE, DUST, SPREAD, INTONE |
+| 13 / 14 | Octave down / up when value is above 63 |
+| 15 / 16 | SUSTAIN / RELEASE |
+| 17 | Master level |
+| 18 | AUTO / MIDI / GRID mode |
+| 19 | Root, MIDI notes 48–72 |
+| 20 | Scale |
+| 21 | Octave shift, −3 to +3 |
+| 22 | Melody generator |
+| 23 | Note / audio looper selection |
+| 24–29 | Loop slots 1–6 when value is above 63 |
+| 30 / 31 | Selected audio-loop speed / level |
+| 32 | softcut pre-level |
+| 33 | Selected audio-loop direction: reverse / forward |
+
+MIDI notes generated by spre are also sent to MIDI port 1 on channel 1.
+
+## Japanese
+
+spreは、monome nornsのためのジェネレーティブ・シンセサイザーです。
+
+5種類のメロディ生成、8種類のボイシング、20種類のスケール、12音ポリフォニーの専用SuperColliderエンジンを搭載。単体で自動演奏するほか、MIDIキーボードや16×8 gridからスケールに沿って演奏できます。ノートルーパーとsoftcutオーディオルーパーも備えています。
+
+起動するとAUTOモードで自動演奏が始まります。E1で音量、E2でパラメータ選択、E3で値を変更します。K3を押すと、メロディ生成方式とボイシングを選ぶページへ移動します。AUTO演奏を止めるにはDENSITYを0にしてください。
+
+最初はE1を低めにしてください。SAT、FILTER、DENSITY、ポリフォニックなボイシングの組み合わせによって、音量が急に大きくなる場合があります。
+
+## Author
+
+Puyoma
+
+## Status
+
+Version 1.0. Feedback, bug reports, and recordings are welcome.
