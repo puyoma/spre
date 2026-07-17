@@ -16,7 +16,7 @@ The sound moves between clean, resonant tones and saturated, dusty, tape-worn te
 
 spre includes its own SuperCollider engine. After the first installation, shut norns down completely and turn it back on; a software restart may not be sufficient.
 
-The project should contain at least:
+Project structure:
 
 ```text
 spre/
@@ -131,14 +131,14 @@ STRUM controls the timing between notes in AUTO-mode chords. At zero, every note
 
 | Parameter | Description |
 |---|---|
-| BRIT | Envelope-linked brightness |
-| SAT | Saturation and drive |
-| ATK | Attack time and contour |
-| DEC | Percussive decay in AUTO; ADSR decay in MIDI / GRID |
+| ATK | Attack |
+| DEC | Decay |
 | FM | Pitch modulation depth |
-| TAPE | Flutter, sample-rate reduction, filtering, and tape noise |
+| BRIT | Tonal brightness |
+| SAT | Saturation and drive |
+| TAPE | Sample-rate reduction and tape noise |
 | FILTER | E3 controls cutoff/resonance: left is darker and more resonant; right is brighter and more open. E1 selects AIR, GLASS, AMBER, or WOOD |
-| DUST | Clicks and noisy high-frequency texture |
+| DUST | High-frequency noise |
 | SPREAD | Randomized stereo placement |
 | INTONE | Tuning color: center is equal temperament; turning away introduces interval-dependent offsets |
 | SUSTAIN | ADSR sustain in MIDI / GRID |
@@ -150,7 +150,7 @@ Turn E1 while FILTER is selected, or use FILTER TYPE in PARAMS, to choose a mode
 
 | Type | Character |
 |---|---|
-| AIR | Bright, open 12 dB low-pass with singing resonance |
+| AIR | Bright, open 12 dB low-pass with pronounced resonance |
 | GLASS | Smooth, clean 24 dB low-pass with restrained resonance |
 | AMBER | Thick, warm ladder filter with a little grit |
 | WOOD | Vactrol-style low-pass gate with an organic decay |
